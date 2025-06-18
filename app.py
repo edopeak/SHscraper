@@ -1,3 +1,5 @@
+# File: app.py (Cloud-Friendly with HTML Pagination per Category + Browser Headers)
+
 import streamlit as st
 import json
 import csv
@@ -19,10 +21,14 @@ def scrape_category_products():
     products = []
     seen = set()
 
+    headers = {
+        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122 Safari/537.36"
+    }
+
     for category in CATEGORY_ENDPOINTS:
-        for page in range(1, 10):  # Try up to 9 pages per category
+        for page in range(1, 10):
             url = base_url.format(category, page)
-            res = requests.get(url, timeout=10)
+            res = requests.get(url, headers=headers, timeout=10)
             if res.status_code != 200:
                 break
 
@@ -125,3 +131,4 @@ if 'scraped' in st.session_state and st.button("3️⃣ Parse Products + Ratings
                 )
 else:
     st.info("👆 Click above to scrape Bumsandroses category pages with full pagination support.")
+
