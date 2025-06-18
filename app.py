@@ -1,4 +1,4 @@
-# File: app.py (Cloud-Friendly Streamlit Version with Bumsandroses Scraper)
+# File: app.py (Cloud-Friendly with Shopify JSON API)
 
 import streamlit as st
 import json
@@ -9,27 +9,34 @@ import requests
 from bs4 import BeautifulSoup
 
 OUTPUT_CSV_PATH = './output/parsed_products.csv'
-RAW_PRODUCTS_URL = 'https://bumsandroses.com/collections/all?sort_by=best-selling'
+SHOPIFY_JSON_API = 'https://bumsandroses.com/collections/all/products.json?page={}'
 
-# Scrape product listings directly from Bumsandroses
+# Scrape product listings from Shopify JSON API
 def scrape_raw_products():
-    response = requests.get(RAW_PRODUCTS_URL)
-    soup = BeautifulSoup(response.text, 'html.parser')
-    product_links = soup.select('a.full-unstyled-link')
-
-    seen = set()
     products = []
+    seen = set()
 
-    for i, a in enumerate(product_links):
-        title = a.get_text(strip=True)
-        href = a.get('href')
-        if href and href not in seen:
-            seen.add(href)
+    for page in range(1, 6):  # fetch up to 5 pages (250 products max)
+        res = requests.get(SHOPIFY_JSON_API.format(page), timeout=10)
+        if res.status_code != 200:
+            break
+
+        data = res.json().get("products", [])
+        if not data:
+            break
+
+        for item in data:
+            title = item.get("title")
+            handle = item.get("handle")
+            if not title or not handle or handle in seen:
+                continue
+            seen.add(handle)
             products.append({
-                'rank': len(products) + 1,
-                'title': title,
-                'url': f'https://bumsandroses.com{href}'
+                "rank": len(products) + 1,
+                "title": title,
+                "url": f"https://bumsandroses.com/products/{handle}"
             })
+
     return products
 
 # Parser logic
@@ -92,7 +99,7 @@ st.set_page_config(page_title="Shopify Print Parser", layout="centered")
 st.title("🛍️ Shopify Print Parser (Cloud-Only)")
 
 if st.button("2️⃣ Scrape Bumsandroses Products"):
-    with st.spinner("Scraping best-sellers from Bumsandroses.com..."):
+    with st.spinner("Scraping from Shopify JSON API..."):
         scraped = scrape_raw_products()
         st.session_state['scraped'] = scraped
         st.success(f"✅ Found {len(scraped)} products.")
