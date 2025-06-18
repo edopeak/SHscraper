@@ -1,4 +1,4 @@
-# File: app.py (Cloud-Friendly with HTML Pagination per Category + Browser Headers)
+# File: app.py (Scrape only Footies page)
 
 import streamlit as st
 import json
@@ -9,46 +9,38 @@ import requests
 from bs4 import BeautifulSoup
 
 OUTPUT_CSV_PATH = './output/parsed_products.csv'
-CATEGORY_ENDPOINTS = [
-    "baby-bamboo-convertible-romper",
-    "two-piece-bamboo-sets",
-    "footies"
-]
 
-# Scrape product listings per category from rendered HTML pages
-def scrape_category_products():
-    base_url = 'https://bumsandroses.com/collections/{}/?page={}'
+# Scrape only the Footies collection page
+def scrape_footies_only():
     products = []
     seen = set()
-
     headers = {
         "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122 Safari/537.36"
     }
 
-    for category in CATEGORY_ENDPOINTS:
-        for page in range(1, 10):
-            url = base_url.format(category, page)
-            res = requests.get(url, headers=headers, timeout=10)
-            if res.status_code != 200:
-                break
+    for page in range(1, 10):
+        url = f'https://bumsandroses.com/collections/footies?page={page}'
+        res = requests.get(url, headers=headers, timeout=10)
+        if res.status_code != 200:
+            break
 
-            soup = BeautifulSoup(res.text, 'html.parser')
-            items = soup.select('a.full-unstyled-link')
-            if not items:
-                break
+        soup = BeautifulSoup(res.text, 'html.parser')
+        items = soup.select('a.full-unstyled-link')
+        if not items:
+            break
 
-            for link in items:
-                title = link.get_text(strip=True)
-                href = link.get('href')
-                if not title or not href or href in seen:
-                    continue
-                seen.add(href)
-                products.append({
-                    "rank": len(products) + 1,
-                    "title": title,
-                    "url": f"https://bumsandroses.com{href}",
-                    "category": category
-                })
+        for link in items:
+            title = link.get_text(strip=True)
+            href = link.get('href')
+            if not title or not href or href in seen:
+                continue
+            seen.add(href)
+            products.append({
+                "rank": len(products) + 1,
+                "title": title,
+                "url": f"https://bumsandroses.com{href}",
+                "category": "footies"
+            })
 
     return products
 
@@ -110,13 +102,13 @@ def parse_and_save(raw_data):
 
 # Streamlit UI
 st.set_page_config(page_title="Shopify Print Parser", layout="centered")
-st.title("🛍️ Shopify Print Parser (Paginated Category HTML)")
+st.title("🛍️ Shopify Print Parser (Footies Only)")
 
-if st.button("2️⃣ Scrape Bumsandroses by Category"):
-    with st.spinner("Scraping HTML pages from Bumsandroses.com..."):
-        scraped = scrape_category_products()
+if st.button("2️⃣ Scrape Footies Page Only"):
+    with st.spinner("Scraping Footies collection from Bumsandroses.com..."):
+        scraped = scrape_footies_only()
         st.session_state['scraped'] = scraped
-        st.success(f"✅ Found {len(scraped)} products across categories.")
+        st.success(f"✅ Found {len(scraped)} products in Footies collection.")
 
 if 'scraped' in st.session_state and st.button("3️⃣ Parse Products + Ratings"):
     with st.spinner("Parsing and enriching product data..."):
@@ -130,5 +122,5 @@ if 'scraped' in st.session_state and st.button("3️⃣ Parse Products + Ratings
                     mime="text/csv"
                 )
 else:
-    st.info("👆 Click above to scrape Bumsandroses category pages with full pagination support.")
+    st.info("👆 Click above to scrape just the Footies category for prints and reviews.")
 
