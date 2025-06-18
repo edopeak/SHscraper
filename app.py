@@ -1,5 +1,3 @@
-# File: app.py (Cloud-Friendly with Shopify JSON API)
-
 import streamlit as st
 import json
 import csv
@@ -9,33 +7,42 @@ import requests
 from bs4 import BeautifulSoup
 
 OUTPUT_CSV_PATH = './output/parsed_products.csv'
-SHOPIFY_JSON_API = 'https://bumsandroses.com/collections/all/products.json?page={}'
+CATEGORY_ENDPOINTS = [
+    "baby-bamboo-convertible-romper",
+    "two-piece-bamboo-sets",
+    "footies"
+]
 
-# Scrape product listings from Shopify JSON API
-def scrape_raw_products():
+# Scrape product listings per category from rendered HTML pages
+def scrape_category_products():
+    base_url = 'https://bumsandroses.com/collections/{}/?page={}'
     products = []
     seen = set()
 
-    for page in range(1, 6):  # fetch up to 5 pages (250 products max)
-        res = requests.get(SHOPIFY_JSON_API.format(page), timeout=10)
-        if res.status_code != 200:
-            break
+    for category in CATEGORY_ENDPOINTS:
+        for page in range(1, 10):  # Try up to 9 pages per category
+            url = base_url.format(category, page)
+            res = requests.get(url, timeout=10)
+            if res.status_code != 200:
+                break
 
-        data = res.json().get("products", [])
-        if not data:
-            break
+            soup = BeautifulSoup(res.text, 'html.parser')
+            items = soup.select('a.full-unstyled-link')
+            if not items:
+                break
 
-        for item in data:
-            title = item.get("title")
-            handle = item.get("handle")
-            if not title or not handle or handle in seen:
-                continue
-            seen.add(handle)
-            products.append({
-                "rank": len(products) + 1,
-                "title": title,
-                "url": f"https://bumsandroses.com/products/{handle}"
-            })
+            for link in items:
+                title = link.get_text(strip=True)
+                href = link.get('href')
+                if not title or not href or href in seen:
+                    continue
+                seen.add(href)
+                products.append({
+                    "rank": len(products) + 1,
+                    "title": title,
+                    "url": f"https://bumsandroses.com{href}",
+                    "category": category
+                })
 
     return products
 
@@ -82,7 +89,8 @@ def parse_and_save(raw_data):
             'product_type': parsed['product_type'],
             'print_name': parsed['print_name'],
             'rating': rating,
-            'review_count': reviews
+            'review_count': reviews,
+            'category': entry.get('category', 'N/A')
         })
 
     os.makedirs(os.path.dirname(OUTPUT_CSV_PATH), exist_ok=True)
@@ -96,13 +104,13 @@ def parse_and_save(raw_data):
 
 # Streamlit UI
 st.set_page_config(page_title="Shopify Print Parser", layout="centered")
-st.title("🛍️ Shopify Print Parser (Cloud-Only)")
+st.title("🛍️ Shopify Print Parser (Paginated Category HTML)")
 
-if st.button("2️⃣ Scrape Bumsandroses Products"):
-    with st.spinner("Scraping from Shopify JSON API..."):
-        scraped = scrape_raw_products()
+if st.button("2️⃣ Scrape Bumsandroses by Category"):
+    with st.spinner("Scraping HTML pages from Bumsandroses.com..."):
+        scraped = scrape_category_products()
         st.session_state['scraped'] = scraped
-        st.success(f"✅ Found {len(scraped)} products.")
+        st.success(f"✅ Found {len(scraped)} products across categories.")
 
 if 'scraped' in st.session_state and st.button("3️⃣ Parse Products + Ratings"):
     with st.spinner("Parsing and enriching product data..."):
@@ -116,4 +124,4 @@ if 'scraped' in st.session_state and st.button("3️⃣ Parse Products + Ratings
                     mime="text/csv"
                 )
 else:
-    st.info("👆 Click above to scrape Bumsandroses products and extract print insights.")
+    st.info("👆 Click above to scrape Bumsandroses category pages with full pagination support.")
