@@ -1,4 +1,4 @@
-# File: app.py
+# File: app.py (Cloud-Friendly Streamlit Version)
 
 import streamlit as st
 import json
@@ -6,56 +6,11 @@ import csv
 import os
 import re
 import requests
-import asyncio
 from bs4 import BeautifulSoup
-from playwright.async_api import async_playwright
-import playwright.__main__ as pw_main
 
-RAW_PRODUCTS_PATH = './data/raw_products.json'
 OUTPUT_CSV_PATH = './output/parsed_products.csv'
-TARGET_URL = 'https://bumsandroses.com/collections/all?sort_by=best-selling'
-
-# Playwright scraper
-async def scrape_products():
-    os.makedirs(os.path.dirname(RAW_PRODUCTS_PATH), exist_ok=True)
-
-    async with async_playwright() as p:
-        browser = await p.chromium.launch(headless=True)
-        page = await browser.new_page()
-        await page.goto(TARGET_URL)
-
-        prev_height = 0
-        while True:
-            curr_height = await page.evaluate("document.body.scrollHeight")
-            if curr_height == prev_height:
-                break
-            prev_height = curr_height
-            await page.evaluate("window.scrollTo(0, document.body.scrollHeight)")
-            await asyncio.sleep(1.5)
-
-        product_links = await page.query_selector_all('a.full-unstyled-link')
-        seen_urls = set()
-        results = []
-
-        for i, link in enumerate(product_links):
-            title = await link.inner_text()
-            href = await link.get_attribute('href')
-            if not href or href in seen_urls:
-                continue
-            seen_urls.add(href)
-            results.append({
-                'rank': len(results) + 1,
-                'title': title.strip(),
-                'url': f"https://bumsandroses.com{href.strip()}"
-            })
-
-        await browser.close()
-
-        with open(RAW_PRODUCTS_PATH, 'w') as f:
-            json.dump(results, f, indent=2)
 
 # Parser logic
-
 def parse_title(title: str) -> dict:
     title = title.strip()
     patterns = [
@@ -82,14 +37,7 @@ def scrape_reviews(product_url: str) -> tuple:
     except Exception:
         return 'N/A', '0'
 
-def parse_and_save():
-    if not os.path.exists(RAW_PRODUCTS_PATH):
-        st.error("❌ raw_products.json not found. Run scraper first.")
-        return
-
-    with open(RAW_PRODUCTS_PATH, 'r') as f:
-        raw_data = json.load(f)
-
+def parse_and_save(raw_data):
     if not raw_data:
         st.warning("⚠️ No products found.")
         return
@@ -118,27 +66,26 @@ def parse_and_save():
     return OUTPUT_CSV_PATH
 
 # Streamlit UI
-st.set_page_config(page_title="Shopify Print Scraper", layout="centered")
-st.title("🛍️ Shopify Print Scraper")
+st.set_page_config(page_title="Shopify Print Parser", layout="centered")
+st.title("🛍️ Shopify Print Parser (Cloud-Only)")
 
-if st.button("1️⃣ Install Playwright (1st time only)"):
-    with st.spinner("Installing Playwright..."):
-        pw_main.main(["install", "chromium"])
-    st.success("✅ Playwright installed")
+uploaded_file = st.file_uploader("📤 Upload raw_products.json", type=["json"])
 
-if st.button("2️⃣ Scrape Best-Selling Products"):
-    with st.spinner("Scraping products..."):
-        asyncio.run(scrape_products())
-    st.success("✅ Products scraped!")
-
-if st.button("3️⃣ Parse Products + Ratings"):
-    with st.spinner("Parsing data and scraping reviews..."):
-        csv_path = parse_and_save()
-        if csv_path and os.path.exists(csv_path):
-            with open(csv_path, 'rb') as f:
-                st.download_button(
-                    label="⬇️ Download Parsed CSV",
-                    data=f,
-                    file_name="parsed_products.csv",
-                    mime="text/csv"
-                )
+if uploaded_file:
+    try:
+        raw_data = json.load(uploaded_file)
+        if st.button("3️⃣ Parse Products + Ratings"):
+            with st.spinner("Parsing data and scraping reviews..."):
+                csv_path = parse_and_save(raw_data)
+                if csv_path and os.path.exists(csv_path):
+                    with open(csv_path, 'rb') as f:
+                        st.download_button(
+                            label="⬇️ Download Parsed CSV",
+                            data=f,
+                            file_name="parsed_products.csv",
+                            mime="text/csv"
+                        )
+    except Exception as e:
+        st.error(f"❌ Failed to load JSON: {e}")
+else:
+    st.info("👆 Upload your raw_products.json file scraped externally.")
