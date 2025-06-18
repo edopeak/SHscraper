@@ -1,4 +1,4 @@
-# File: app.py (Footies Only - with HTML Debug Output)
+# File: app.py (Footies Only - Always Show HTML Debug)
 
 import streamlit as st
 import json
@@ -18,7 +18,7 @@ def scrape_footies_only():
         "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122 Safari/537.36"
     }
 
-    html_preview = ""
+    html_preview = "(no HTML received)"
 
     for page in range(1, 2):  # Just first page for debug
         url = f'https://bumsandroses.com/collections/footies?page={page}'
@@ -29,8 +29,6 @@ def scrape_footies_only():
         soup = BeautifulSoup(res.text, 'html.parser')
         html_preview = soup.prettify()[:3000]  # Limit preview to 3KB
         items = soup.select('a.full-unstyled-link')
-        if not items:
-            break
 
         for link in items:
             title = link.get_text(strip=True)
@@ -128,5 +126,4 @@ if 'scraped' in st.session_state and st.button("3️⃣ Parse Products + Ratings
                 )
 else:
     st.info("👆 Click above to scrape just the Footies category for prints and reviews.")
-
 
