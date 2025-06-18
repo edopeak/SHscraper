@@ -1,4 +1,4 @@
-# File: app.py (Cloud-Friendly Streamlit Version)
+# File: app.py (Cloud-Friendly Streamlit Version with Bumsandroses Scraper)
 
 import streamlit as st
 import json
@@ -9,6 +9,28 @@ import requests
 from bs4 import BeautifulSoup
 
 OUTPUT_CSV_PATH = './output/parsed_products.csv'
+RAW_PRODUCTS_URL = 'https://bumsandroses.com/collections/all?sort_by=best-selling'
+
+# Scrape product listings directly from Bumsandroses
+def scrape_raw_products():
+    response = requests.get(RAW_PRODUCTS_URL)
+    soup = BeautifulSoup(response.text, 'html.parser')
+    product_links = soup.select('a.full-unstyled-link')
+
+    seen = set()
+    products = []
+
+    for i, a in enumerate(product_links):
+        title = a.get_text(strip=True)
+        href = a.get('href')
+        if href and href not in seen:
+            seen.add(href)
+            products.append({
+                'rank': len(products) + 1,
+                'title': title,
+                'url': f'https://bumsandroses.com{href}'
+            })
+    return products
 
 # Parser logic
 def parse_title(title: str) -> dict:
@@ -69,23 +91,22 @@ def parse_and_save(raw_data):
 st.set_page_config(page_title="Shopify Print Parser", layout="centered")
 st.title("🛍️ Shopify Print Parser (Cloud-Only)")
 
-uploaded_file = st.file_uploader("📤 Upload raw_products.json", type=["json"])
+if st.button("2️⃣ Scrape Bumsandroses Products"):
+    with st.spinner("Scraping best-sellers from Bumsandroses.com..."):
+        scraped = scrape_raw_products()
+        st.session_state['scraped'] = scraped
+        st.success(f"✅ Found {len(scraped)} products.")
 
-if uploaded_file:
-    try:
-        raw_data = json.load(uploaded_file)
-        if st.button("3️⃣ Parse Products + Ratings"):
-            with st.spinner("Parsing data and scraping reviews..."):
-                csv_path = parse_and_save(raw_data)
-                if csv_path and os.path.exists(csv_path):
-                    with open(csv_path, 'rb') as f:
-                        st.download_button(
-                            label="⬇️ Download Parsed CSV",
-                            data=f,
-                            file_name="parsed_products.csv",
-                            mime="text/csv"
-                        )
-    except Exception as e:
-        st.error(f"❌ Failed to load JSON: {e}")
+if 'scraped' in st.session_state and st.button("3️⃣ Parse Products + Ratings"):
+    with st.spinner("Parsing and enriching product data..."):
+        csv_path = parse_and_save(st.session_state['scraped'])
+        if csv_path and os.path.exists(csv_path):
+            with open(csv_path, 'rb') as f:
+                st.download_button(
+                    label="⬇️ Download Parsed CSV",
+                    data=f,
+                    file_name="parsed_products.csv",
+                    mime="text/csv"
+                )
 else:
-    st.info("👆 Upload your raw_products.json file scraped externally.")
+    st.info("👆 Click above to scrape Bumsandroses products and extract print insights.")
