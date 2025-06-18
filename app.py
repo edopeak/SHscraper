@@ -1,5 +1,3 @@
-# File: app.py (Footies Only - Always Show HTML Debug)
-
 import streamlit as st
 import json
 import csv
@@ -9,41 +7,6 @@ import requests
 from bs4 import BeautifulSoup
 
 OUTPUT_CSV_PATH = './output/parsed_products.csv'
-
-# Scrape only the Footies collection page
-def scrape_footies_only():
-    products = []
-    seen = set()
-    headers = {
-        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122 Safari/537.36"
-    }
-
-    html_preview = "(no HTML received)"
-
-    for page in range(1, 2):  # Just first page for debug
-        url = f'https://bumsandroses.com/collections/footies?page={page}'
-        res = requests.get(url, headers=headers, timeout=10)
-        if res.status_code != 200:
-            break
-
-        soup = BeautifulSoup(res.text, 'html.parser')
-        html_preview = soup.prettify()[:3000]  # Limit preview to 3KB
-        items = soup.select('a.full-unstyled-link')
-
-        for link in items:
-            title = link.get_text(strip=True)
-            href = link.get('href')
-            if not title or not href or href in seen:
-                continue
-            seen.add(href)
-            products.append({
-                "rank": len(products) + 1,
-                "title": title,
-                "url": f"https://bumsandroses.com{href}",
-                "category": "footies"
-            })
-
-    return products, html_preview
 
 # Parser logic
 def parse_title(title: str) -> dict:
@@ -102,28 +65,28 @@ def parse_and_save(raw_data):
     return OUTPUT_CSV_PATH
 
 # Streamlit UI
-st.set_page_config(page_title="Shopify Print Parser", layout="centered")
-st.title("🛍️ Shopify Print Parser (Footies Only)")
+st.set_page_config(page_title="Shopify Print Parser (Upload Mode)", layout="centered")
+st.title("🛍️ Shopify Print Parser (Upload JSON)")
 
-if st.button("2️⃣ Scrape Footies Page Only"):
-    with st.spinner("Scraping Footies collection from Bumsandroses.com..."):
-        scraped, html = scrape_footies_only()
-        st.session_state['scraped'] = scraped
-        st.success(f"✅ Found {len(scraped)} products in Footies collection.")
-        with st.expander("🧪 View HTML preview (debug)"):
-            st.code(html, language="html")
+uploaded_file = st.file_uploader("📤 Upload raw_products.json", type="json")
 
-if 'scraped' in st.session_state and st.button("3️⃣ Parse Products + Ratings"):
-    with st.spinner("Parsing and enriching product data..."):
-        csv_path = parse_and_save(st.session_state['scraped'])
-        if csv_path and os.path.exists(csv_path):
-            with open(csv_path, 'rb') as f:
-                st.download_button(
-                    label="⬇️ Download Parsed CSV",
-                    data=f,
-                    file_name="parsed_products.csv",
-                    mime="text/csv"
-                )
+if uploaded_file:
+    try:
+        raw_data = json.load(uploaded_file)
+        if st.button("3️⃣ Parse Products + Ratings"):
+            with st.spinner("Parsing and enriching product data..."):
+                csv_path = parse_and_save(raw_data)
+                if csv_path and os.path.exists(csv_path):
+                    with open(csv_path, 'rb') as f:
+                        st.download_button(
+                            label="⬇️ Download Parsed CSV",
+                            data=f,
+                            file_name="parsed_products.csv",
+                            mime="text/csv"
+                        )
+    except Exception as e:
+        st.error(f"❌ Failed to load JSON: {e}")
 else:
-    st.info("👆 Click above to scrape just the Footies category for prints and reviews.")
+    st.info("👆 Upload your raw_products.json file to begin.")
+
 
