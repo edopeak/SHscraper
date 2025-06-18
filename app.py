@@ -1,4 +1,4 @@
-# File: app.py (Scrape only Footies page)
+# File: app.py (Footies Only - with HTML Debug Output)
 
 import streamlit as st
 import json
@@ -18,13 +18,16 @@ def scrape_footies_only():
         "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122 Safari/537.36"
     }
 
-    for page in range(1, 10):
+    html_preview = ""
+
+    for page in range(1, 2):  # Just first page for debug
         url = f'https://bumsandroses.com/collections/footies?page={page}'
         res = requests.get(url, headers=headers, timeout=10)
         if res.status_code != 200:
             break
 
         soup = BeautifulSoup(res.text, 'html.parser')
+        html_preview = soup.prettify()[:3000]  # Limit preview to 3KB
         items = soup.select('a.full-unstyled-link')
         if not items:
             break
@@ -42,7 +45,7 @@ def scrape_footies_only():
                 "category": "footies"
             })
 
-    return products
+    return products, html_preview
 
 # Parser logic
 def parse_title(title: str) -> dict:
@@ -106,9 +109,11 @@ st.title("🛍️ Shopify Print Parser (Footies Only)")
 
 if st.button("2️⃣ Scrape Footies Page Only"):
     with st.spinner("Scraping Footies collection from Bumsandroses.com..."):
-        scraped = scrape_footies_only()
+        scraped, html = scrape_footies_only()
         st.session_state['scraped'] = scraped
         st.success(f"✅ Found {len(scraped)} products in Footies collection.")
+        with st.expander("🧪 View HTML preview (debug)"):
+            st.code(html, language="html")
 
 if 'scraped' in st.session_state and st.button("3️⃣ Parse Products + Ratings"):
     with st.spinner("Parsing and enriching product data..."):
@@ -123,4 +128,5 @@ if 'scraped' in st.session_state and st.button("3️⃣ Parse Products + Ratings
                 )
 else:
     st.info("👆 Click above to scrape just the Footies category for prints and reviews.")
+
 
